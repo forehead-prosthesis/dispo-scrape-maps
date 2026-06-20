@@ -1,0 +1,90 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dispensary products — search</title>
+<style>
+ body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:1.5rem auto;padding:0 1rem;color:#1a1a1a}
+ h1{margin:.2rem 0} .sub{color:#666;margin:0 0 1rem}
+ .filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
+ .filters input,.filters select{padding:.35rem .5rem;border:1px solid #ccc;border-radius:6px;font:inherit}
+ #q{flex:1;min-width:200px}
+ table{width:100%;border-collapse:collapse;font-size:14px}
+ th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #eee}
+ th{cursor:pointer;user-select:none;color:#0a58ca} td.num{text-align:right;font-variant-numeric:tabular-nums}
+ .count{color:#666;margin:.5rem 0}
+ footer{color:#888;font-size:.85rem;margin-top:2rem}
+</style></head><body>
+<h1>Dispensary product search</h1>
+<p class="sub">Live menus across every store in a state — normalized category, potency, price.</p>
+<div class="filters">
+ <select id="state"><option value="PA">PA</option></select>
+ <input id="q" placeholder="search name or brand…">
+ <select id="cat"><option value="">all categories</option></select>
+ <select id="strain"><option value="">all strains</option></select>
+ <select id="store"><option value="">all stores</option></select>
+ <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
+ <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
+</div>
+<div class="count" id="count"></div>
+<table><thead><tr>
+ <th data-k="n">Product</th><th data-k="b">Brand</th><th data-k="c">Category</th>
+ <th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
+ <th data-k="cbd" class="num">CBD%</th><th data-k="p" class="num">$</th><th data-k="store">Store</th>
+</tr></thead><tbody id="rows"></tbody></table>
+<footer>dispensary intelligence pipeline · forehead-prosthesis/dispo-scrape</footer>
+<script>
+const CAP = 500;  // render at most this many rows; the count shows the full match total
+let PRODUCTS = [], STORES = {}, sortK = "n", sortDir = 1;
+const $ = id => document.getElementById(id);
+
+async function loadState(st) {
+  const [p, s] = await Promise.all([
+    fetch(`products/${st}.json`).then(r => r.json()),
+    fetch('stores.json').then(r => r.json()),
+  ]);
+  PRODUCTS = p.products; STORES = s;
+  const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
+  $('cat').innerHTML = '<option value="">all categories</option>' +
+    cats.map(c => `<option>${c}</option>`).join('');
+  const strains = [...new Set(PRODUCTS.map(x => x.t).filter(Boolean))].sort();
+  $('strain').innerHTML = '<option value="">all strains</option>' +
+    strains.map(c => `<option>${c}</option>`).join('');
+  const stk = [...new Set(PRODUCTS.map(x => x.s))]
+    .map(k => [k, (STORES[k]||{}).n || k]).sort((a,b) => a[1].localeCompare(b[1]));
+  $('store').innerHTML = '<option value="">all stores</option>' +
+    stk.map(([k,n]) => `<option value="${k}">${n}</option>`).join('');
+  render();
+}
+
+function render() {
+  const q = $('q').value.toLowerCase().trim();
+  const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
+  const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
+  let rows = PRODUCTS.filter(x =>
+    (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
+    (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
+    (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
+    (isNaN(maxP) || (x.p != null && x.p <= maxP)));
+  rows.sort((a,b) => {
+    let va = sortK === 'store' ? ((STORES[a.s]||{}).n||'') : a[sortK];
+    let vb = sortK === 'store' ? ((STORES[b.s]||{}).n||'') : b[sortK];
+    if (va == null) return 1; if (vb == null) return -1;
+    return (typeof va === 'number' ? va - vb : (''+va).localeCompare(''+vb)) * sortDir;
+  });
+  $('count').textContent = `${rows.length.toLocaleString()} products` +
+    (rows.length > CAP ? ` (showing first ${CAP} — refine to narrow)` : '');
+  $('rows').innerHTML = rows.slice(0, CAP).map(x => {
+    const st = STORES[x.s] || {};
+    const cell = v => v == null ? '' : v;
+    return `<tr><td>${cell(x.n)}</td><td>${cell(x.b)}</td><td>${cell(x.c)}</td>` +
+      `<td>${cell(x.t)}</td><td class="num">${cell(x.thc)}</td><td class="num">${cell(x.cbd)}</td>` +
+      `<td class="num">${x.p==null?'':'$'+x.p}</td><td>${cell(st.n)}${st.c?', '+st.c:''}</td></tr>`;
+  }).join('');
+}
+
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
+});
+['q','cat','strain','store','thc','pmax'].forEach(id => $(id).oninput = render);
+$('state').onchange = () => loadState($('state').value);
+loadState($('state').value);
+</script></body></html>
