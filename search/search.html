@@ -20,6 +20,8 @@
  <input id="q" placeholder="search name or brand…">
  <select id="cat"><option value="">all categories</option></select>
  <select id="strain"><option value="">all strains</option></select>
+ <input id="city" list="citylist" placeholder="city…" style="width:140px">
+ <datalist id="citylist"></datalist>
  <select id="store"><option value="">all stores</option></select>
  <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
  <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
@@ -56,16 +58,20 @@ async function loadState(st) {
     .map(k => [k, (STORES[k]||{}).n || k]).sort((a,b) => a[1].localeCompare(b[1]));
   $('store').innerHTML = '<option value="">all stores</option>' +
     stk.map(([k,n]) => `<option value="${k}">${n}</option>`).join('');
+  const cities = [...new Set(PRODUCTS.map(x => (STORES[x.s]||{}).c).filter(Boolean))].sort();
+  $('citylist').innerHTML = cities.map(c => `<option value="${c}">`).join('');
   render();
 }
 
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
+  const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
     (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
+    (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
     (isNaN(maxP) || (x.p != null && x.p <= maxP)));
   rows.sort((a,b) => {
@@ -89,7 +95,7 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','cat','strain','store','thc','pmax'].forEach(id => $(id).oninput = render);
+['q','cat','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
