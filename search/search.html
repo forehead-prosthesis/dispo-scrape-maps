@@ -50,17 +50,12 @@ async function loadState(st) {
     fetch('stores.json').then(r => r.json()),
   ]);
   PRODUCTS = p.products; STORES = s;
-  // Brand dropdown: alphabetical, with product counts, so dupes cluster and you can spot them.
-  const bc = {};
-  PRODUCTS.forEach(x => { if (x.b) bc[x.b] = (bc[x.b] || 0) + 1; });
-  const brands = Object.keys(bc).sort((a,b) => a.localeCompare(b));
-  $('brand').innerHTML = `<option value="">all brands (${brands.length})</option>` +
-    brands.map(b => `<option value="${b}">${b} (${bc[b].toLocaleString()})</option>`).join('');
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
   fillTypes();     // product-type dropdown — scoped to the chosen category
   fillStrains();   // strain dropdown — scoped to the chosen category + type
+  fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
   const stk = [...new Set(PRODUCTS.map(x => x.s))]
     .map(k => [k, (STORES[k]||{}).n || k]).sort((a,b) => a[1].localeCompare(b[1]));
   $('store').innerHTML = '<option value="">all stores</option>' +
@@ -94,6 +89,22 @@ function fillStrains() {
   $('strain').innerHTML = '<option value="">all strains</option>' +
     strains.map(s => `<option>${s}</option>`).join('');
   $('strain').value = strains.includes(cur) ? cur : '';
+}
+
+// Populate the brand dropdown (alphabetical, with product counts so dupes cluster) with only the
+// brands present under the chosen category + type + strain. Keeps the current pick if still valid.
+function fillBrands() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const cur = $('brand').value;
+  const bc = {};
+  PRODUCTS.forEach(x => {
+    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain))
+      bc[x.b] = (bc[x.b] || 0) + 1;
+  });
+  const brands = Object.keys(bc).sort((a, b) => a.localeCompare(b));
+  $('brand').innerHTML = `<option value="">all brands (${brands.length})</option>` +
+    brands.map(b => `<option value="${b}">${b} (${bc[b].toLocaleString()})</option>`).join('');
+  $('brand').value = brands.includes(cur) ? cur : '';
 }
 
 function render() {
@@ -130,10 +141,11 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','brand','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// The category/type cascade: category re-scopes both type and strain; type re-scopes strain.
-$('cat').oninput = () => { fillTypes(); fillStrains(); render(); };
-$('ptype').oninput = () => { fillStrains(); render(); };
+['q','brand','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// The Category → Type → Strain → Brand cascade: each level re-scopes every level below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); render(); };
+$('strain').oninput = () => { fillBrands(); render(); };
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
