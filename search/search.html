@@ -56,10 +56,7 @@ async function loadState(st) {
   fillTypes();     // product-type dropdown — scoped to the chosen category
   fillStrains();   // strain dropdown — scoped to the chosen category + type
   fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
-  const stk = [...new Set(PRODUCTS.map(x => x.s))]
-    .map(k => [k, (STORES[k]||{}).n || k]).sort((a,b) => a[1].localeCompare(b[1]));
-  $('store').innerHTML = '<option value="">all stores</option>' +
-    stk.map(([k,n]) => `<option value="${k}">${n}</option>`).join('');
+  fillStores();    // store dropdown — scoped to the chosen category + type + strain + brand
   const cities = [...new Set(PRODUCTS.map(x => (STORES[x.s]||{}).c).filter(Boolean))].sort();
   $('citylist').innerHTML = cities.map(c => `<option value="${c}">`).join('');
   render();
@@ -107,6 +104,22 @@ function fillBrands() {
   $('brand').value = brands.includes(cur) ? cur : '';
 }
 
+// Populate the store dropdown (by storefront name) with only the stores that carry a product under
+// the chosen category + type + strain + brand. Keeps the current pick if still valid, else resets.
+function fillStores() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, cur = $('store').value;
+  const keys = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand)) keys.add(x.s);
+  });
+  const stk = [...keys].map(k => [k, (STORES[k]||{}).n || k]).sort((a, b) => a[1].localeCompare(b[1]));
+  $('store').innerHTML = '<option value="">all stores</option>' +
+    stk.map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+  $('store').value = keys.has(cur) ? cur : '';
+}
+
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const brand = $('brand').value, ptype = $('ptype').value;
@@ -141,11 +154,12 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','brand','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// The Category → Type → Strain → Brand cascade: each level re-scopes every level below it.
-$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); render(); };
-$('ptype').oninput = () => { fillStrains(); fillBrands(); render(); };
-$('strain').oninput = () => { fillBrands(); render(); };
+['q','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// The Category → Type → Strain → Brand → Store cascade: each level re-scopes every level below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); render(); };
+$('strain').oninput = () => { fillBrands(); fillStores(); render(); };
+$('brand').oninput = () => { fillStores(); render(); };
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
