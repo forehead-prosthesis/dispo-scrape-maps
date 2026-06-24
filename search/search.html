@@ -59,12 +59,7 @@ async function loadState(st) {
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
-  // Product-type dropdown: counts + alphabetical, so you can scan the 2nd-level taxonomy.
-  const ptc = {};
-  PRODUCTS.forEach(x => { if (x.pt) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
-  const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
-  $('ptype').innerHTML = '<option value="">all types</option>' +
-    ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
+  fillTypes();   // product-type dropdown — scoped to the chosen category
   const strains = [...new Set(PRODUCTS.map(x => x.t).filter(Boolean))].sort();
   $('strain').innerHTML = '<option value="">all strains</option>' +
     strains.map(c => `<option>${c}</option>`).join('');
@@ -75,6 +70,18 @@ async function loadState(st) {
   const cities = [...new Set(PRODUCTS.map(x => (STORES[x.s]||{}).c).filter(Boolean))].sort();
   $('citylist').innerHTML = cities.map(c => `<option value="${c}">`).join('');
   render();
+}
+
+// Populate the product-type dropdown with only the chosen category's types (all types when no
+// category is selected), counts + alphabetical. Keeps the current pick if still valid, else resets.
+function fillTypes() {
+  const cat = $('cat').value, cur = $('ptype').value;
+  const ptc = {};
+  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
+  const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
+  $('ptype').innerHTML = '<option value="">all types</option>' +
+    ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
+  $('ptype').value = ptypes.includes(cur) ? cur : '';
 }
 
 function render() {
@@ -111,7 +118,9 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','brand','cat','ptype','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+['q','brand','ptype','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// Changing the category re-scopes the type dropdown (then renders).
+$('cat').oninput = () => { fillTypes(); render(); };
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
