@@ -18,6 +18,7 @@
 <div class="filters">
  <select id="state"><option value="PA">PA</option></select>
  <input id="q" placeholder="search name or brand…">
+ <select id="brand"><option value="">all brands</option></select>
  <select id="cat"><option value="">all categories</option></select>
  <select id="strain"><option value="">all strains</option></select>
  <input id="city" list="citylist" placeholder="city…" style="width:140px">
@@ -48,6 +49,12 @@ async function loadState(st) {
     fetch('stores.json').then(r => r.json()),
   ]);
   PRODUCTS = p.products; STORES = s;
+  // Brand dropdown: alphabetical, with product counts, so dupes cluster and you can spot them.
+  const bc = {};
+  PRODUCTS.forEach(x => { if (x.b) bc[x.b] = (bc[x.b] || 0) + 1; });
+  const brands = Object.keys(bc).sort((a,b) => a.localeCompare(b));
+  $('brand').innerHTML = `<option value="">all brands (${brands.length})</option>` +
+    brands.map(b => `<option value="${b}">${b} (${bc[b].toLocaleString()})</option>`).join('');
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
@@ -65,11 +72,13 @@ async function loadState(st) {
 
 function render() {
   const q = $('q').value.toLowerCase().trim();
+  const brand = $('brand').value;
   const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
     (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
+    (!brand || x.b === brand) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
     (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
@@ -95,7 +104,7 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','cat','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+['q','brand','cat','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
