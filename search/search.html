@@ -59,10 +59,8 @@ async function loadState(st) {
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
-  fillTypes();   // product-type dropdown — scoped to the chosen category
-  const strains = [...new Set(PRODUCTS.map(x => x.t).filter(Boolean))].sort();
-  $('strain').innerHTML = '<option value="">all strains</option>' +
-    strains.map(c => `<option>${c}</option>`).join('');
+  fillTypes();     // product-type dropdown — scoped to the chosen category
+  fillStrains();   // strain dropdown — scoped to the chosen category + type
   const stk = [...new Set(PRODUCTS.map(x => x.s))]
     .map(k => [k, (STORES[k]||{}).n || k]).sort((a,b) => a[1].localeCompare(b[1]));
   $('store').innerHTML = '<option value="">all stores</option>' +
@@ -82,6 +80,20 @@ function fillTypes() {
   $('ptype').innerHTML = '<option value="">all types</option>' +
     ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
   $('ptype').value = ptypes.includes(cur) ? cur : '';
+}
+
+// Populate the strain dropdown with only the strains present under the chosen category + type
+// (cascades below them). Keeps the current pick if still valid, else resets.
+function fillStrains() {
+  const cat = $('cat').value, ptype = $('ptype').value, cur = $('strain').value;
+  const set = new Set();
+  PRODUCTS.forEach(x => {
+    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype)) set.add(x.t);
+  });
+  const strains = [...set].sort();
+  $('strain').innerHTML = '<option value="">all strains</option>' +
+    strains.map(s => `<option>${s}</option>`).join('');
+  $('strain').value = strains.includes(cur) ? cur : '';
 }
 
 function render() {
@@ -118,9 +130,10 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','brand','ptype','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// Changing the category re-scopes the type dropdown (then renders).
-$('cat').oninput = () => { fillTypes(); render(); };
+['q','brand','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// The category/type cascade: category re-scopes both type and strain; type re-scopes strain.
+$('cat').oninput = () => { fillTypes(); fillStrains(); render(); };
+$('ptype').oninput = () => { fillStrains(); render(); };
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
