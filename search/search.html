@@ -57,8 +57,7 @@ async function loadState(st) {
   fillStrains();   // strain dropdown — scoped to the chosen category + type
   fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
   fillStores();    // store dropdown — scoped to the chosen category + type + strain + brand
-  const cities = [...new Set(PRODUCTS.map(x => (STORES[x.s]||{}).c).filter(Boolean))].sort();
-  $('citylist').innerHTML = cities.map(c => `<option value="${c}">`).join('');
+  fillCities();    // city autocomplete — scoped to the chosen category + type + strain + brand + store
   render();
 }
 
@@ -120,6 +119,23 @@ function fillStores() {
   $('store').value = keys.has(cur) ? cur : '';
 }
 
+// Refresh the city autocomplete list with only the cities present under the chosen category + type
+// + strain + brand + store. City is a free-text contains-filter, so this only narrows the suggested
+// options (it doesn't clear what's typed).
+function fillCities() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, store = $('store').value;
+  const set = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand) && (!store || x.s === store)) {
+      const c = (STORES[x.s]||{}).c;
+      if (c) set.add(c);
+    }
+  });
+  $('citylist').innerHTML = [...set].sort().map(c => `<option value="${c}">`).join('');
+}
+
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const brand = $('brand').value, ptype = $('ptype').value;
@@ -154,12 +170,13 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// The Category → Type → Strain → Brand → Store cascade: each level re-scopes every level below it.
-$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); render(); };
-$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); render(); };
-$('strain').oninput = () => { fillBrands(); fillStores(); render(); };
-$('brand').oninput = () => { fillStores(); render(); };
+['q','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// The Category → Type → Strain → Brand → Store → City cascade: each level re-scopes every below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
+$('strain').oninput = () => { fillBrands(); fillStores(); fillCities(); render(); };
+$('brand').oninput = () => { fillStores(); fillCities(); render(); };
+$('store').oninput = () => { fillCities(); render(); };
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
