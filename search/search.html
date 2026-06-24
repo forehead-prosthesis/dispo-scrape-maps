@@ -20,6 +20,7 @@
  <input id="q" placeholder="search name or brand…">
  <select id="brand"><option value="">all brands</option></select>
  <select id="cat"><option value="">all categories</option></select>
+ <select id="ptype"><option value="">all types</option></select>
  <select id="strain"><option value="">all strains</option></select>
  <input id="city" list="citylist" placeholder="city…" style="width:140px">
  <datalist id="citylist"></datalist>
@@ -30,7 +31,7 @@
 <div class="count" id="count"></div>
 <table><thead><tr>
  <th data-k="n">Product</th><th data-k="b">Brand</th><th data-k="c">Category</th>
- <th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
+ <th data-k="pt">Type</th><th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
  <th data-k="cbd" class="num">CBD%</th><th data-k="p" class="num">$</th>
  <th data-k="sz">Size</th><th data-k="tp:Myrcene" class="num" title="Myrcene (% terpene)">Myr</th><th data-k="tp:Limonene" class="num" title="Limonene (% terpene)">Lim</th><th data-k="tp:Caryophyllene" class="num" title="Caryophyllene (% terpene)">Car</th><th data-k="tp:Pinene" class="num" title="Pinene (% terpene)">Pin</th><th data-k="tp:Linalool" class="num" title="Linalool (% terpene)">Lin</th><th data-k="tp:Terpinolene" class="num" title="Terpinolene (% terpene)">Ter</th><th data-k="tp:Humulene" class="num" title="Humulene (% terpene)">Hum</th><th data-k="tp:Ocimene" class="num" title="Ocimene (% terpene)">Oci</th><th data-k="tp:Bisabolol" class="num" title="Bisabolol (% terpene)">Bis</th><th data-k="store">Store</th>
 </tr></thead><tbody id="rows"></tbody></table>
@@ -58,6 +59,12 @@ async function loadState(st) {
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
+  // Product-type dropdown: counts + alphabetical, so you can scan the 2nd-level taxonomy.
+  const ptc = {};
+  PRODUCTS.forEach(x => { if (x.pt) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
+  const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
+  $('ptype').innerHTML = '<option value="">all types</option>' +
+    ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
   const strains = [...new Set(PRODUCTS.map(x => x.t).filter(Boolean))].sort();
   $('strain').innerHTML = '<option value="">all strains</option>' +
     strains.map(c => `<option>${c}</option>`).join('');
@@ -72,13 +79,13 @@ async function loadState(st) {
 
 function render() {
   const q = $('q').value.toLowerCase().trim();
-  const brand = $('brand').value;
+  const brand = $('brand').value, ptype = $('ptype').value;
   const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
     (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
-    (!brand || x.b === brand) &&
+    (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
     (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
@@ -96,7 +103,7 @@ function render() {
     const tps = TERPENES.map(t => `<td class="num">${(x.tp && x.tp[t] != null) ? x.tp[t] : ''}</td>`).join('');
     const store = st.n ? (st.c && !(''+st.n).includes(st.c) ? st.n + ', ' + st.c : st.n) : '';
     return `<tr><td>${cell(x.n)}</td><td>${cell(x.b)}</td><td>${cell(x.c)}</td>` +
-      `<td>${cell(x.t)}</td><td class="num">${cell(x.thc)}</td><td class="num">${cell(x.cbd)}</td>` +
+      `<td>${cell(x.pt)}</td><td>${cell(x.t)}</td><td class="num">${cell(x.thc)}</td><td class="num">${cell(x.cbd)}</td>` +
       `<td class="num">${x.p==null?'':'$'+x.p}</td><td>${cell(x.sz)}</td>${tps}<td>${store}</td></tr>`;
   }).join('');
 }
@@ -104,7 +111,7 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','brand','cat','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
+['q','brand','cat','ptype','strain','store','city','thc','pmax'].forEach(id => $(id).oninput = render);
 $('state').onchange = () => loadState($('state').value);
 loadState($('state').value);
 </script></body></html>
