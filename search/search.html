@@ -2,19 +2,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dispensary products — search</title>
 <style>
- body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:1.5rem auto;padding:0 1rem;color:#1a1a1a}
+ /* Full-viewport flex column: the heading + filters + count stay fixed at the top and only the
+    table area (.tablewrap) scrolls, so everything above and including the column headers stays put. */
+ body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:.6rem 1rem 0;
+   color:#1a1a1a;height:100vh;display:flex;flex-direction:column}
  h1{margin:.2rem 0} .sub{color:#666;margin:0 0 1rem}
  .filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
  .filters input,.filters select{padding:.35rem .5rem;border:1px solid #ccc;border-radius:6px;font:inherit}
+ .filters button{padding:.35rem .5rem;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;font:inherit}
  #q{flex:1;min-width:200px}
+ .resultbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;margin:.5rem 0}
+ .count{color:#666}
+ .sortwrap{color:#444;font-size:.92rem;display:flex;align-items:center;gap:.35rem;cursor:pointer}
+ .sortwrap select{padding:.3rem .4rem;border:1px solid #ccc;border-radius:6px;font:inherit}
+ .tablewrap{flex:1;min-height:0;overflow:auto}              /* the only scroll region */
  table{width:100%;border-collapse:collapse;font-size:14px}
  th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #eee}
- th{cursor:pointer;user-select:none;color:#0a58ca} td.num{text-align:right;font-variant-numeric:tabular-nums}
- .count{color:#666;margin:.5rem 0}
- footer{color:#888;font-size:.85rem;margin-top:2rem}
+ td.num{text-align:right;font-variant-numeric:tabular-nums}
+ tbody tr:nth-child(even){background:#f4f5f7}                 /* zebra striping */
+ thead th{position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;color:#0a58ca;
+   background:#fff;box-shadow:inset 0 -1px 0 #ccc}            /* header row stays while rows scroll */
+ footer{color:#888;font-size:.85rem;margin:1rem 0}
+ .sub .note{display:block;font-size:.85rem;color:#888;margin-top:.15rem}
+ /* Mobile (≤720px): a 20-column table is unusable on a phone, so stack each product as a
+    labelled card — hide the header row, show each cell's column name via data-label, and drop
+    empty cells (so a product shows only the terpenes it actually has, by full name). */
+ @media (max-width:720px){
+  body{height:auto;display:block}
+  .tablewrap{overflow:visible}
+  thead{display:none}
+  table,tbody{display:block}
+  tbody tr{display:block;border:1px solid #ddd;border-radius:8px;padding:.4rem .7rem;margin:.6rem 0;background:#fff}
+  tbody tr:nth-child(even){background:#f7f8fa}
+  tbody td{display:flex;justify-content:space-between;gap:1rem;padding:.2rem 0;border:0;border-bottom:1px solid #eef0f2;text-align:right}
+  tbody td::before{content:attr(data-label);font-weight:600;color:#666;text-align:left}
+  tbody td:empty{display:none}
+  tbody td[data-label="Product"]{display:block;text-align:left;font-size:1.05rem;font-weight:600;
+    border-bottom:1px solid #eee;margin-bottom:.3rem;padding-bottom:.3rem}
+  tbody td[data-label="Product"]::before{content:""}
+ }
 </style></head><body>
 <h1>Dispensary product search</h1>
-<p class="sub">Live menus across every store in a state — collapsed brand, normalized category, potency, price.</p>
+<p class="sub">Find which dispensaries carry the product, strain, or terpene you're after — and compare prices across stores.<span class="note">A snapshot of recent menus — prices and stock change, so confirm with the dispensary before you go.</span></p>
 <div class="filters">
  <select id="state"><option value="PA">PA</option></select>
  <input id="q" placeholder="search name or brand…">
@@ -24,41 +53,133 @@
  <select id="strain"><option value="">all strains</option></select>
  <input id="city" list="citylist" placeholder="city…" style="width:140px">
  <datalist id="citylist"></datalist>
+ <input id="near" placeholder="ZIP…" style="width:80px" inputmode="numeric" title="US ZIP to center distance on">
+ <button id="geo" type="button" title="Use my current location">📍</button>
+ <select id="radius" title="distance from the ZIP / your location">
+  <option value="">any distance</option>
+  <option value="5">≤5 mi</option><option value="10">≤10 mi</option>
+  <option value="25">≤25 mi</option><option value="50">≤50 mi</option><option value="100">≤100 mi</option>
+ </select>
  <select id="store"><option value="">all stores</option></select>
+ <select id="size"><option value="">all sizes</option></select>
  <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
  <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
+ <button id="reset" type="button" title="Clear all filters and search">Reset</button>
 </div>
-<div class="count" id="count"></div>
+<div class="resultbar">
+ <span class="count" id="count"></span>
+ <label class="sortwrap">Sort by <span aria-hidden="true">↕</span>
+  <select id="sort" title="Sort the results">
+   <option value="n|1">Name (A–Z)</option>
+   <option value="p|1">Price: low to high</option>
+   <option value="p|-1">Price: high to low</option>
+   <option value="thc|-1">THC %: high to low</option>
+   <option value="cbd|-1">CBD %: high to low</option>
+   <option value="dist|1">Nearest first</option>
+   <optgroup label="Terpene — high to low"><option value="tp:Myrcene|-1">Myrcene</option><option value="tp:Limonene|-1">Limonene</option><option value="tp:Caryophyllene|-1">Caryophyllene</option><option value="tp:Pinene|-1">Pinene</option><option value="tp:Linalool|-1">Linalool</option><option value="tp:Terpinolene|-1">Terpinolene</option><option value="tp:Humulene|-1">Humulene</option><option value="tp:Ocimene|-1">Ocimene</option><option value="tp:Bisabolol|-1">Bisabolol</option></optgroup>
+  </select>
+ </label>
+</div>
+<div class="tablewrap">
 <table><thead><tr>
  <th data-k="n">Product</th><th data-k="b">Brand</th><th data-k="c">Category</th>
  <th data-k="pt">Type</th><th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
  <th data-k="cbd" class="num">CBD%</th><th data-k="p" class="num">$</th>
- <th data-k="sz">Size</th><th data-k="tp:Myrcene" class="num" title="Myrcene (% terpene)">Myr</th><th data-k="tp:Limonene" class="num" title="Limonene (% terpene)">Lim</th><th data-k="tp:Caryophyllene" class="num" title="Caryophyllene (% terpene)">Car</th><th data-k="tp:Pinene" class="num" title="Pinene (% terpene)">Pin</th><th data-k="tp:Linalool" class="num" title="Linalool (% terpene)">Lin</th><th data-k="tp:Terpinolene" class="num" title="Terpinolene (% terpene)">Ter</th><th data-k="tp:Humulene" class="num" title="Humulene (% terpene)">Hum</th><th data-k="tp:Ocimene" class="num" title="Ocimene (% terpene)">Oci</th><th data-k="tp:Bisabolol" class="num" title="Bisabolol (% terpene)">Bis</th><th data-k="store">Store</th>
+ <th data-k="sz">Size</th><th data-k="tp:Myrcene" class="num" title="Myrcene (% terpene)">Myr</th><th data-k="tp:Limonene" class="num" title="Limonene (% terpene)">Lim</th><th data-k="tp:Caryophyllene" class="num" title="Caryophyllene (% terpene)">Car</th><th data-k="tp:Pinene" class="num" title="Pinene (% terpene)">Pin</th><th data-k="tp:Linalool" class="num" title="Linalool (% terpene)">Lin</th><th data-k="tp:Terpinolene" class="num" title="Terpinolene (% terpene)">Ter</th><th data-k="tp:Humulene" class="num" title="Humulene (% terpene)">Hum</th><th data-k="tp:Ocimene" class="num" title="Ocimene (% terpene)">Oci</th><th data-k="tp:Bisabolol" class="num" title="Bisabolol (% terpene)">Bis</th><th data-k="dist" class="num" title="miles from your ZIP / location">mi</th><th data-k="store">Store</th>
 </tr></thead><tbody id="rows"></tbody></table>
-<footer>dispensary intelligence pipeline · forehead-prosthesis/dispo-scrape</footer>
+<footer>A community project to help patients find what they need — built from public dispensary menus, not affiliated with any dispensary.</footer>
+</div>
 <script>
 const CAP = 500;  // render at most this many rows; the count shows the full match total
 const TERPENES = ["Myrcene", "Limonene", "Caryophyllene", "Pinene", "Linalool", "Terpinolene", "Humulene", "Ocimene", "Bisabolol"];  // canonical terpene columns
-let PRODUCTS = [], STORES = {}, sortK = "n", sortDir = 1;
+const USE_PARQUET = false;  // load .parquet shards (zstd, ~40% smaller) when exported
+let PRODUCTS = [], STORES = {}, sortK = "n", sortDir = 1, CENTER = null, STORE_DIST = {};
 const $ = id => document.getElementById(id);
 const getv = (x, k) => k === 'store' ? ((STORES[x.s]||{}).n||'')
+  : k === 'dist' ? (x.s in STORE_DIST ? STORE_DIST[x.s] : null)
   : k.startsWith('tp:') ? ((x.tp||{})[k.slice(3)]) : x[k];
 
-async function loadState(st) {
-  const [p, s] = await Promise.all([
-    fetch(`products/${st}.json`).then(r => r.json()),
-    fetch('stores.json').then(r => r.json()),
-  ]);
-  PRODUCTS = p.products; STORES = s;
-  const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
+// Load a state's products: prefer the compact .parquet shard decoded in-browser by the vendored
+// hyparquet bundle (no CDN, pure-JS zstd); fall back to the .json shard on any error so the page
+// always works. The terpene map rides as a JSON string column, parsed back here.
+async function loadProducts(st) {
+  if (USE_PARQUET) {
+    try {
+      const { parquetReadObjects, compressors } = await import('./parquet.min.js');
+      const ab = await fetch(`products/${st}.parquet`)
+        .then(r => { if (!r.ok) throw new Error(`parquet ${r.status}`); return r.arrayBuffer(); });
+      const rows = await parquetReadObjects({ file: ab, compressors });
+      for (const r of rows) r.tp = r.tp ? JSON.parse(r.tp) : null;
+      return rows;
+    } catch (e) { console.warn('parquet load failed — falling back to JSON', e); }
+  }
+  return (await fetch(`products/${st}.json`)
+    .then(r => { if (!r.ok) throw new Error(`json ${r.status}`); return r.json(); })).products;
+}
+
+// Per-state shard cache + a 404 memo, so each state loads once and a missing neighbor shard isn't
+// re-requested. PRODUCTS is the merged product set of the currently ACTIVE states (see applyNear).
+let LOADED = {}, SHARD_MISS = {}, ACTIVE_KEY = '';
+
+async function ensureState(st) {
+  if (LOADED[st] || SHARD_MISS[st]) return;
+  try {
+    const products = await loadProducts(st);
+    // Precompute a lowercased name+brand search key ONCE per row so the text filter doesn't
+    // re-lowercase every name on each keystroke.
+    products.forEach(x => { x._q = ((x.n || '') + ' ' + (x.b || '')).toLowerCase(); });
+    LOADED[st] = products;
+  } catch (e) { SHARD_MISS[st] = true; }   // shard absent in this build (e.g. single-state) — skip
+}
+
+// Which states' products to show: the selected one, plus — when a finite radius is active — every
+// state that has a store within that radius (cross-border, so someone near a state line also sees
+// the neighbor's dispensaries). Uses the memoized per-store distances; stores.json carries every
+// state's coords in a national build. In a single-state build STORES holds only that state, so the
+// set is just the selected state and no neighbor shard is ever requested.
+function activeStates() {
+  const set = new Set([$('state').value]);
+  const radius = parseFloat($('radius').value);
+  if (CENTER && !isNaN(radius)) {
+    for (const k in STORE_DIST)
+      if (STORE_DIST[k] <= radius) { const st = (STORES[k] || {}).st; if (st) set.add(st); }
+  }
+  return [...set];
+}
+
+// Recompute distances, lazily load any newly-needed shards, and — only when the active state set
+// actually changed — rebuild PRODUCTS + the facet dropdowns; then render.
+async function applyNear() {
+  recomputeStoreDist();
+  const states = activeStates();
+  await Promise.all(states.map(ensureState));
+  const key = states.filter(st => LOADED[st]).sort().join(',');
+  if (key !== ACTIVE_KEY) {
+    ACTIVE_KEY = key;
+    PRODUCTS = states.flatMap(st => LOADED[st] || []);
+  }
+  refillFacets();   // always: a radius/center change re-scopes the facets even within one state
+  render();
+}
+
+function refillFacets() {
+  const curCat = $('cat').value;
+  const cats = [...new Set(PRODUCTS.filter(inRadius).map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
+  $('cat').value = cats.includes(curCat) ? curCat : '';
   fillTypes();     // product-type dropdown — scoped to the chosen category
   fillStrains();   // strain dropdown — scoped to the chosen category + type
   fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
   fillStores();    // store dropdown — scoped to the chosen category + type + strain + brand
-  fillCities();    // city autocomplete — scoped to the chosen category + type + strain + brand + store
-  render();
+  fillSizes();     // size dropdown — scoped to the chosen category + type + strain + brand + store
+  fillCities();    // city autocomplete — scoped to all of the above
+}
+
+async function loadState(st) {
+  if (!Object.keys(STORES).length) STORES = await fetch('stores.json').then(r => r.json());
+  await ensureState(st);
+  await applyNear();
 }
 
 // Populate the product-type dropdown with only the chosen category's types (all types when no
@@ -66,7 +187,7 @@ async function loadState(st) {
 function fillTypes() {
   const cat = $('cat').value, cur = $('ptype').value;
   const ptc = {};
-  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
+  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat) && inRadius(x)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
   const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
   $('ptype').innerHTML = '<option value="">all types</option>' +
     ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
@@ -79,7 +200,7 @@ function fillStrains() {
   const cat = $('cat').value, ptype = $('ptype').value, cur = $('strain').value;
   const set = new Set();
   PRODUCTS.forEach(x => {
-    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype)) set.add(x.t);
+    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && inRadius(x)) set.add(x.t);
   });
   const strains = [...set].sort();
   $('strain').innerHTML = '<option value="">all strains</option>' +
@@ -94,7 +215,7 @@ function fillBrands() {
   const cur = $('brand').value;
   const bc = {};
   PRODUCTS.forEach(x => {
-    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain))
+    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) && inRadius(x))
       bc[x.b] = (bc[x.b] || 0) + 1;
   });
   const brands = Object.keys(bc).sort((a, b) => a.localeCompare(b));
@@ -111,7 +232,7 @@ function fillStores() {
   const keys = new Set();
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
-        (!brand || x.b === brand)) keys.add(x.s);
+        (!brand || x.b === brand) && inRadius(x)) keys.add(x.s);
   });
   const stk = [...keys].map(k => [k, (STORES[k]||{}).n || k]).sort((a, b) => a[1].localeCompare(b[1]));
   $('store').innerHTML = '<option value="">all stores</option>' +
@@ -124,11 +245,12 @@ function fillStores() {
 // options (it doesn't clear what's typed).
 function fillCities() {
   const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
-  const brand = $('brand').value, store = $('store').value;
+  const brand = $('brand').value, store = $('store').value, size = $('size').value;
   const set = new Set();
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
-        (!brand || x.b === brand) && (!store || x.s === store)) {
+        (!brand || x.b === brand) && (!store || x.s === store) &&
+        (!size || sizeBuckets(x).includes(size)) && inRadius(x)) {
       const c = (STORES[x.s]||{}).c;
       if (c) set.add(c);
     }
@@ -136,19 +258,121 @@ function fillCities() {
   $('citylist').innerHTML = [...set].sort().map(c => `<option value="${c}">`).join('');
 }
 
+// Named size buckets PER category ({category_std: [canonical weight labels]}) — the sizes that
+// carry real volume within that category across the whole USA (Flower in eighths/ounces, Vape &
+// Concentrate in 1-2 g). A size that's odd for its category — and every dosed mg / "each" /
+// no-size product — folds into "Other".
+const COMMON_BY_CAT = {"Concentrate": ["1g", "2g", "3g", "3.5g", "4g", "5g", "7g"], "Flower": ["1g", "3.5g", "7g", "14g", "28g"], "Pre-Roll": ["1g", "1.2g", "1.25g", "1.3g", "1.5g", "2g", "2.5g", "3g", "3.5g", "5g", "7g", "10g", "14g", "28g"], "Vape": ["0.5g", "1g", "2g", "3g", "5g"]};
+
+// Grams in a label ("3.5g" -> 3.5) for ordering the pulldown; non-weight labels ("Other") sort last.
+const sizeG = s => { const n = parseFloat(s); return (s.endsWith('g') && n > 0) ? n : Infinity; };
+
+// A product's size labels (`sz` is " / "-joined) bucketed for the pulldown against ITS category's
+// common set: each common weight kept as-is, everything else collapsed to a single "Other".
+function sizeBuckets(x) {
+  if (!x.sz) return [];
+  const common = new Set(COMMON_BY_CAT[x.c] || []);
+  const set = new Set();
+  x.sz.split(' / ').forEach(s => set.add(common.has(s) ? s : 'Other'));
+  return [...set];
+}
+
+// Populate the size dropdown with the buckets present under the chosen category + type + strain +
+// brand + store: common weights ascending, then "Other" last. The cascade already scopes these to
+// the chosen category + type, so the list narrows to that type's real sizes. Keeps a valid pick.
+function fillSizes() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, store = $('store').value, cur = $('size').value;
+  const present = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand) && (!store || x.s === store) && inRadius(x))
+      sizeBuckets(x).forEach(s => present.add(s));
+  });
+  const sizes = [...present].sort((a, b) => (sizeG(a) - sizeG(b)) || a.localeCompare(b));
+  $('size').innerHTML = '<option value="">all sizes</option>' +
+    sizes.map(s => `<option>${s}</option>`).join('');
+  $('size').value = sizes.includes(cur) ? cur : '';
+}
+
+// ── distance ("near me") ──────────────────────────────────────────────────────
+// Stores carry lat/lon (stores.json); CENTER is the user's point — a geocoded ZIP or browser
+// geolocation. Distance is a per-STORE property (every product is sold at a store), so we memoize
+// it once per store in STORE_DIST (~hundreds of stores) whenever CENTER changes, instead of
+// recomputing a great-circle per product (~145k) on every render. STORE_DIST[store_key] is miles;
+// a store with no coords is simply absent, so the radius filter and column treat it as null.
+function haversine(la1, lo1, la2, lo2) {
+  const R = 3959, r = Math.PI / 180, dp = (la2 - la1) * r, dl = (lo2 - lo1) * r;
+  const h = Math.sin(dp/2)**2 + Math.cos(la1*r) * Math.cos(la2*r) * Math.sin(dl/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function recomputeStoreDist() {
+  STORE_DIST = {};
+  if (!CENTER) return;
+  for (const k in STORES) {
+    const st = STORES[k];
+    if (st.lat != null && st.lon != null) STORE_DIST[k] = haversine(CENTER.lat, CENTER.lon, st.lat, st.lon);
+  }
+}
+// A product is "in range" when no location radius is active, or its store is within it. Scopes BOTH
+// the result rows AND every facet dropdown, so "ZIP + ≤25 mi" narrows the store/brand/type/… lists
+// to what's actually reachable — not just the table. (A store with no coords is out of range under
+// a finite radius.)
+function inRadius(x) {
+  const r = parseFloat($('radius').value);
+  return !CENTER || isNaN(r) || (STORE_DIST[x.s] != null && STORE_DIST[x.s] <= r);
+}
+// A complete 5-digit US ZIP geocodes via zippopotam.us (free, CORS-enabled, no key); blank clears
+// the center. On success, default the sort to nearest-first. The product data is never refetched.
+async function setNearFromZip() {
+  const v = $('near').value.trim();
+  if (!v) { CENTER = null; applyNear(); return; }
+  if (!/^\d{5}$/.test(v)) return;                       // wait for a full ZIP before geocoding
+  try {
+    const j = await fetch(`https://api.zippopotam.us/us/${v}`).then(r => r.ok ? r.json() : null);
+    const p = j && j.places && j.places[0];
+    CENTER = p ? { lat: +p.latitude, lon: +p.longitude } : null;
+  } catch (e) { CENTER = null; }
+  if (CENTER) setSort('dist', 1);
+  applyNear();
+}
+function setNearFromGeo() {
+  if (!navigator.geolocation) { alert('Geolocation is not available in this browser.'); return; }
+  navigator.geolocation.getCurrentPosition(
+    p => { CENTER = { lat: p.coords.latitude, lon: p.coords.longitude };
+           $('near').value = ''; setSort('dist', 1); applyNear(); },
+    () => alert('Could not get your location.'),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+// Clear everything and return to the opening state — for when a chain of filters paints someone
+// into an empty-result corner. Resets search text, every facet, the location + radius, the THC/
+// price bounds and the sort, then re-derives the dropdowns and re-renders.
+function resetAll() {
+  ['q','brand','cat','ptype','strain','city','near','store','size','thc','pmax']
+    .forEach(id => $(id).value = '');
+  $('radius').value = '';
+  CENTER = null;
+  setSort('n', 1);
+  applyNear();   // recompute distances (cleared), refill all facets, re-render
+}
+
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const brand = $('brand').value, ptype = $('ptype').value;
   const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
+  const size = $('size').value;
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
-    (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
+    (!q || x._q.includes(q)) &&
     (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
+    (!size || sizeBuckets(x).includes(size)) &&
     (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
-    (isNaN(maxP) || (x.p != null && x.p <= maxP)));
+    (isNaN(maxP) || (x.p != null && x.p <= maxP)) &&
+    inRadius(x));
   rows.sort((a,b) => {
     let va = getv(a, sortK), vb = getv(b, sortK);
     if (va == null) return 1; if (vb == null) return -1;
@@ -159,24 +383,53 @@ function render() {
   $('rows').innerHTML = rows.slice(0, CAP).map(x => {
     const st = STORES[x.s] || {};
     const cell = v => v == null ? '' : v;
-    const tps = TERPENES.map(t => `<td class="num">${(x.tp && x.tp[t] != null) ? x.tp[t] : ''}</td>`).join('');
+    const tps = TERPENES.map(t => `<td class="num" data-label="${t}">${(x.tp && x.tp[t] != null) ? x.tp[t] : ''}</td>`).join('');
     const store = st.n ? (st.c && !(''+st.n).includes(st.c) ? st.n + ', ' + st.c : st.n) : '';
-    return `<tr><td>${cell(x.n)}</td><td>${cell(x.b)}</td><td>${cell(x.c)}</td>` +
-      `<td>${cell(x.pt)}</td><td>${cell(x.t)}</td><td class="num">${cell(x.thc)}</td><td class="num">${cell(x.cbd)}</td>` +
-      `<td class="num">${x.p==null?'':'$'+x.p}</td><td>${cell(x.sz)}</td>${tps}<td>${store}</td></tr>`;
+    return `<tr><td data-label="Product">${cell(x.n)}</td><td data-label="Brand">${cell(x.b)}</td><td data-label="Category">${cell(x.c)}</td>` +
+      `<td data-label="Type">${cell(x.pt)}</td><td data-label="Strain">${cell(x.t)}</td><td class="num" data-label="THC%">${cell(x.thc)}</td><td class="num" data-label="CBD%">${cell(x.cbd)}</td>` +
+      `<td class="num" data-label="Price">${x.p==null?'':'$'+x.p.toFixed(2)}</td><td data-label="Size">${cell(x.sz)}</td>${tps}` +
+      `<td class="num" data-label="Miles">${STORE_DIST[x.s]==null?'':STORE_DIST[x.s].toFixed(1)}</td><td data-label="Store">${store}</td></tr>`;
   }).join('');
 }
 
+// One place sets the sort; it also keeps the Sort dropdown in sync (blanked when a header-click
+// sorts by a column the dropdown doesn't list, e.g. Size or a terpene). The dropdown is the only
+// sort control on mobile, where the clickable column headers are hidden in card view.
+function setSort(k, d) {
+  sortK = k; sortDir = d;
+  const v = k + '|' + d, sel = $('sort');
+  if (sel) sel.value = [...sel.options].some(o => o.value === v) ? v : '';
+}
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
-  const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
+  const k = th.dataset.k; setSort(k, (sortK === k) ? -sortDir : 1); render();
 });
-['q','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// The Category → Type → Strain → Brand → Store → City cascade: each level re-scopes every below it.
-$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
-$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
-$('strain').oninput = () => { fillBrands(); fillStores(); fillCities(); render(); };
-$('brand').oninput = () => { fillStores(); fillCities(); render(); };
-$('store').oninput = () => { fillCities(); render(); };
+$('sort').onchange = () => { const [k, d] = $('sort').value.split('|'); setSort(k, +d); render(); };
+// Debounce the free-text inputs so a fast typist doesn't trigger a full 145k-row filter per
+// keystroke; the numeric inputs stay immediate.
+const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+const dRender = debounce(render, 120);
+['q','city'].forEach(id => $(id).oninput = dRender);
+['thc','pmax'].forEach(id => $(id).oninput = render);
+// Location filter: debounce the ZIP box (geocodes when it reaches 5 digits), 📍 reads geolocation,
+// the radius select re-applies. These go through applyNear (not render) because changing the radius
+// or center can pull in neighboring states' shards (cross-border); it scopes rows, not the dropdowns.
+$('near').oninput = debounce(setNearFromZip, 300);
+$('geo').onclick = setNearFromGeo;
+$('radius').onchange = applyNear;
+$('reset').onclick = resetAll;
+// The Category → Type → Strain → Brand → Store → Size → City cascade: each re-scopes every below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('strain').oninput = () => { fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('brand').oninput = () => { fillStores(); fillSizes(); fillCities(); render(); };
+$('store').oninput = () => { fillSizes(); fillCities(); render(); };
+$('size').oninput = () => { fillCities(); render(); };
 $('state').onchange = () => loadState($('state').value);
+// Single-state build (e.g. the standalone PA site): the state pulldown is pointless — hide it and
+// name the state in the heading instead.
+if ($('state').options.length === 1) {
+  $('state').style.display = 'none';
+  document.querySelector('h1').textContent = $('state').value + ' dispensary product search';
+}
 loadState($('state').value);
 </script></body></html>
